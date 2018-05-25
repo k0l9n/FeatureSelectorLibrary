@@ -79,6 +79,7 @@ namespace FeatureSelectionLibrary
             ValidationHistory = new List<double>();
         }
         public int CurrentIterationCount { get; set; }
+        public int LastIterationErrorDecrease { get; set; }
         public double CurrentError { get; set; }
         public List<double> ValidationHistory { get; set; }
         public bool IsErrorOnTrain { get; set; }
@@ -171,18 +172,13 @@ namespace FeatureSelectionLibrary
 
         private bool TeachNextIteration(EvaluationResult evResult) // if returns true -> stop teaching
         {
-            double _prev = 0;
             bool iterationCompleated = evResult.CurrentIterationCount >= MaxIterationCount;
             // TODO через запоминание итерации посдедного улучшеня
-            bool validationsGrows = evResult.ValidationHistory.Count >= ErrorPartNotChanged && evResult.ValidationHistory.Take(ErrorPartNotChanged).Select(d =>
-            {
-                bool res = _prev <= d;
-                _prev = d;
-                return res;
-            }).All(x => x);
+            bool erreoDecrease = evResult.CurrentIterationCount - evResult.LastIterationErrorDecrease < ErrorPartNotChanged;
+            
             bool currValidationBigger = evResult.CurrentError > ErrorPart;
 
-            return iterationCompleated || !validationsGrows || currValidationBigger;
+            return iterationCompleated || !erreoDecrease || currValidationBigger;
         }
 
         public override double Evaluate(IChromosome chromosome)
@@ -217,10 +213,12 @@ namespace FeatureSelectionLibrary
             {
                 CurrentError = 0,
                 CurrentIterationCount = 0,
+                LastIterationErrorDecrease = 0,
                 ValidationHistory = new List<double>(),
                 IsErrorOnTrain = IsValidateOnTrain
             };
             bool teach = true;
+            double prevError = 100;
 
             while (teach)
             {
@@ -230,6 +228,9 @@ namespace FeatureSelectionLibrary
                 evaluationResult.CurrentError = evaluationResult.IsErrorOnTrain ? teachResult.train : teachResult.validation;
                 evaluationResult.CurrentIterationCount++;
                 evaluationResult.ValidationHistory.Add(evaluationResult.IsErrorOnTrain ? teachResult.train : teachResult.validation);
+                if (prevError > evaluationResult.CurrentError)
+                    evaluationResult.LastIterationErrorDecrease = evaluationResult.CurrentIterationCount;
+                prevError = evaluationResult.CurrentError;
 
                 teach = !TeachNextIteration(evaluationResult);
             }
@@ -331,22 +332,23 @@ namespace FeatureSelectionLibrary
             FitnessFunction = new InformativeFitness(data);
         }
 
-        public string Select()
+        public List<string> Select()
         {
+            var resultCromos = new List<string>();
             var cromo = new BinaryChromosome(64);
             Console.WriteLine(cromo.ToString());
-            string bestChromo = "";
+            //string bestChromo = "";
 
             Population myPopulation = new Population(PopulationSize, cromo, new InformativeFitness(ImportedData, ImportedResults), SelectionMethod) { MutationRate = MutationRate };
             for (int learning = 0; learning < LearningRuns; learning++)
             {
                 myPopulation.RunEpoch();
 
-                bestChromo = myPopulation.BestChromosome.ToString();
+                resultCromos.Add(myPopulation.BestChromosome.ToString());
 
             }
 
-            return bestChromo;
+            return resultCromos;
         }
     }
 
